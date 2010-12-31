@@ -112,6 +112,8 @@ public class LogBlock extends Plugin
 		etc.getLoader().addListener(PluginLoader.Hook.SIGN_CHANGE, listener, this, PluginListener.Priority.LOW);
 		etc.getLoader().addListener(PluginLoader.Hook.ITEM_USE, listener, this, PluginListener.Priority.LOW);
 		etc.getLoader().addListener(PluginLoader.Hook.OPEN_INVENTORY, listener, this, PluginListener.Priority.LOW);
+		etc.getLoader().addListener(PluginLoader.Hook.IGNITE, listener, this, PluginListener.Priority.LOW);
+		etc.getLoader().addListener(PluginLoader.Hook.EXPLODE, listener, this, PluginListener.Priority.LOW);
 	}
 	
 	private Connection getConnection() throws SQLException
@@ -257,7 +259,12 @@ public class LogBlock extends Plugin
 	
 	private void queueEvent(Player player, int type, int x, int y, int z, LogRowType eventType)
 	{
-		LogRow row = new LogRow(eventType, player.getName(), type, x, y, z);
+		String playerName = "";
+		if (player != null) {
+			playerName = player.getName();
+		}
+		
+		LogRow row = new LogRow(eventType, playerName, type, x, y, z);
 
 		boolean result = bqueue.offer(row);
 		if (debug) {
@@ -426,12 +433,25 @@ public class LogBlock extends Plugin
 		
 		public boolean onItemUse(Player player, Block blockPlaced, Block blockClicked, Item item)
 		{
-			if (item.getItemId() != 326 && item.getItemId() != 327) // water and lava buckets
-				return false;
-			
-			queueBlock(player, lastface, blockPlaced);
-			if (debug)
-				lblog.info("onItemUse: placed " + blockPlaced.getType() + " clicked " + blockClicked.getType() + " item " + item.getItemId());
+			int itemId = item.getItemId();
+			switch (itemId) {
+				case 326: // Water Bucket
+				case 327: // Lava Bucket
+					queueBlock(player, lastface, blockPlaced);
+					if (debug) {
+						lblog.info("onItemUse: placed " + blockPlaced.getType() + " clicked " + blockClicked.getType() + " item " + item.getItemId());
+					}
+					break;
+				case 260: // Apple
+				case 297: // Bread
+				case 319: // Pork
+				case 320: // Grilled Pork
+				case 322: // Golden Apple
+				case 349: // Raw Fish
+				case 350: // Cooked Fish
+					queueEvent(player, itemId, (int)player.getX(), (int)player.getY(), (int)player.getZ(), LogRowType.FOOD);
+					break;
+			}
 
 			return false;
 		}
@@ -456,6 +476,27 @@ public class LogBlock extends Plugin
 			
 			queueEvent(player, storageBlock.getType(), storageBlock.getX(), storageBlock.getY(), storageBlock.getZ(), LogRowType.INVENTORY);
 			
+	        return false;
+		}
+		
+		public boolean onIgnite(Block block, Player player) {
+			if (block.getStatus() == 2) {
+				queueEvent(player, 259, block.getX(), block.getY(), block.getZ(), LogRowType.ITEM);
+			}
+	        return false;
+	    }
+		
+		public boolean onExplode(Block block) {
+			int typeId = 0;
+			
+			if (block.getStatus() == 2) {
+				// Creeper
+				typeId = -1;
+			} else {
+				typeId = block.getType();
+			}
+			
+			queueEvent(null, typeId, block.getX(), block.getY(), block.getZ(), LogRowType.EXPLOSION);
 	        return false;
 	    }		
 	} // end LBListener
